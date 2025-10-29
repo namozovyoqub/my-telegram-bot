@@ -9,7 +9,7 @@ logging.basicConfig(
 )
 
 # Environment variables
-BOT_TOKEN = os.environ.get('8421362951:AAGBErKWbZxSYDejERx-MXxEAKNOJZU3Ulo')
+BOT_TOKEN = os.environ.get('8282484764:AAEwCUtTTLGT94Y1iLpaIAhjT4hPxfKFvqM')
 ADMIN_CHAT_ID = os.environ.get('5274895365')
 
 # Conversation states
