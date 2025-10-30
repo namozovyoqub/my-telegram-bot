@@ -34,9 +34,11 @@ class SimpleFaceVerification:
                 photo_file = await update.message.photo[-1].get_file()
                 photo_path = f"face_{update.effective_user.id}.jpg"
                 await photo_file.download_to_drive(photo_path)
+                logger.info(f"✅ Rasm yuklandi: {photo_path}")
                 
                 # Yuzni tekshirish
                 result = SimpleFaceVerification.detect_face_simple(photo_path)
+                logger.info(f"Yuz tekshirish natijasi: {result}")
                 
                 if result["success"]:
                     if result["face_count"] == 1:
@@ -97,6 +99,7 @@ class SimpleFaceVerification:
             # Rasmni yuklash
             image = cv2.imread(image_path)
             if image is None:
+                logger.error("Rasm yuklanmadi")
                 return {"success": False, "face_count": 0}
             
             # Gray scale ga o'tkazish
@@ -107,11 +110,11 @@ class SimpleFaceVerification:
                 gray, 
                 scaleFactor=1.1, 
                 minNeighbors=5, 
-                minSize=(30, 30),
-                flags=cv2.CASCADE_SCALE_IMAGE
+                minSize=(30, 30)
             )
             
             face_count = len(faces)
+            logger.info(f"Aniqlangan yuzlar soni: {face_count}")
             
             if face_count == 0:
                 return {"success": False, "face_count": 0}
@@ -122,8 +125,7 @@ class SimpleFaceVerification:
             return {
                 "success": True,
                 "face_count": face_count,
-                "quality": quality,
-                "faces": faces
+                "quality": quality
             }
             
         except Exception as e:
@@ -299,14 +301,21 @@ async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # Ma'lumotlarni adminga yuborish (rasm bilan birga)
-        await send_to_admin_with_photo(update, context)
+        success = await send_to_admin_with_photo(update, context)
         
-        await update.message.reply_text(
-            "✅ Murojaatingiz muvaffaqiyatli yuborildi!\n\n"
-            "📞 Tez orada aloqaga chiqamiz\n"
-            "🛡️ Korrupsiyaga qarshi kurash - bizning burchimiz!\n\n"
-            "🆕 Yangi murojaat yuborish uchun /start buyrug'ini yuboring"
-        )
+        if success:
+            await update.message.reply_text(
+                "✅ Murojaatingiz muvaffaqiyatli yuborildi!\n\n"
+                "📞 Tez orada aloqaga chiqamiz\n"
+                "🛡️ Korrupsiyaga qarshi kurash - bizning burchimiz!\n\n"
+                "🆕 Yangi murojaat yuborish uchun /start buyrug'ini yuboring"
+            )
+        else:
+            await update.message.reply_text(
+                "⚠️ Murojaatingiz qabul qilindi, lekin rasm yuborishda muammo yuz berdi.\n\n"
+                "📞 Tez orada aloqaga chiqamiz\n"
+                "🆕 Yangi murojaat uchun /start buyrug'ini yuboring"
+            )
         
     except Exception as e:
         logger.error(f"Xatolik: {e}")
@@ -346,29 +355,45 @@ Username: {update.effective_user.username or 'Noma lum'}
         
         # Avval text xabarni yuborish
         await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_message)
+        logger.info("✅ Text xabar adminga yuborildi")
         
         # Keyin rasmni yuborish
-        if user_data.get('face_photo_path') and os.path.exists(user_data['face_photo_path']):
-            with open(user_data['face_photo_path'], 'rb') as photo:
-                await context.bot.send_photo(
-                    chat_id=ADMIN_CHAT_ID,
-                    photo=photo,
-                    caption=f"📸 Biometrik tasdiqlash - {user_data.get('full_name', 'Foydalanuvchi')}"
-                )
+        photo_sent = False
+        if user_data.get('face_photo_path'):
+            photo_path = user_data['face_photo_path']
+            logger.info(f"Rasm yo'li: {photo_path}")
+            
+            if os.path.exists(photo_path):
+                try:
+                    with open(photo_path, 'rb') as photo:
+                        await context.bot.send_photo(
+                            chat_id=ADMIN_CHAT_ID,
+                            photo=photo,
+                            caption=f"📸 Biometrik tasdiqlash - {user_data.get('full_name', 'Foydalanuvchi')}"
+                        )
+                    photo_sent = True
+                    logger.info("✅ Rasm adminga muvaffaqiyatli yuborildi")
+                except Exception as e:
+                    logger.error(f"Rasm yuborishda xatolik: {e}")
+            else:
+                logger.error(f"Rasm fayli topilmadi: {photo_path}")
         
-        logger.info("✅ Ma'lumotlar va rasm adminga yuborildi")
+        return photo_sent
         
     except Exception as e:
         logger.error(f"Adminga yuborishda xatolik: {e}")
+        return False
 
 async def cleanup_files(context: ContextTypes.DEFAULT_TYPE):
     """Vaqtincha fayllarni tozalash"""
     user_data = context.user_data
     
     try:
-        if user_data.get('face_photo_path') and os.path.exists(user_data['face_photo_path']):
-            os.remove(user_data['face_photo_path'])
-        logger.info("✅ Vaqtincha fayllar tozalandi")
+        if user_data.get('face_photo_path'):
+            photo_path = user_data['face_photo_path']
+            if os.path.exists(photo_path):
+                os.remove(photo_path)
+                logger.info(f"✅ Fayl o'chirildi: {photo_path}")
     except Exception as e:
         logger.error(f"Fayllarni tozalashda xatolik: {e}")
 
