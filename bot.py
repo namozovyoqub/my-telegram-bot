@@ -2,7 +2,6 @@ import logging
 import os
 import cv2
 import numpy as np
-import mediapipe as mp
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
@@ -23,139 +22,145 @@ ADMIN_CHAT_ID = "5274895365"
 # Tugmalar
 BACK_BUTTON = "⬅️ Orqaga qaytish"
 
-class MediaPipeFaceVerification:
-    """MediaPipe yordamida yuzni tasdiqlash"""
+class SimpleFaceVerification:
+    """Soddalashtirilgan yuzni tasdiqlash"""
     
-    def __init__(self):
-        self.mp_face_detection = mp.solutions.face_detection
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_detection = self.mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5)
-    
-    async def verify_face(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Yuzni tasdiqlash"""
+    @staticmethod
+    async def verify_face(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Yuzni tasdiqlash va rasmni saqlash"""
         if update.message.photo:
             try:
                 # Rasmni yuklab olish
                 photo_file = await update.message.photo[-1].get_file()
-                photo_path = f"temp_face_{update.effective_user.id}.jpg"
+                photo_path = f"face_{update.effective_user.id}.jpg"
                 await photo_file.download_to_drive(photo_path)
                 
                 # Yuzni tekshirish
-                result = self.detect_face_mediapipe(photo_path)
-                
-                # Faylni o'chirish
-                try:
-                    os.remove(photo_path)
-                except:
-                    pass
+                result = SimpleFaceVerification.detect_face_simple(photo_path)
                 
                 if result["success"]:
                     if result["face_count"] == 1:
                         context.user_data['face_verified'] = True
                         context.user_data['face_quality'] = result["quality"]
-                        context.user_data['face_confidence'] = result["confidence"]
+                        context.user_data['face_photo_path'] = photo_path  # Rasmni saqlash
                         
                         await update.message.reply_text(
                             f"✅ YUZ MUVAFFAQIYATLI TASDIQLANDI!\n\n"
-                            f"📊 Ishonch darajasi: {result['confidence']:.1%}\n"
-                            f"⭐ Sifat bahosi: {result['quality']}%\n"
+                            f"📊 Sifat bahosi: {result['quality']}%\n"
                             f"👤 Yuzlar soni: {result['face_count']}\n\n"
                             f"🆔 Biometrik tasdiqlash muvaffaqiyatli!"
                         )
                         return True
                     else:
+                        # Rasmni o'chirish (tasdiqlanmagan)
+                        try:
+                            os.remove(photo_path)
+                        except:
+                            pass
+                        
                         await update.message.reply_text(
                             f"❌ {result['face_count']} ta yuz aniqlandi.\n"
-                            f"Faqat bitta yuz bo'lishi kerak. Iltimos, faqat o'zingizning yuzingizni ko'rsating."
+                            f"Faqat bitta yuz bo'lishi kerak."
                         )
                         return False
                 else:
+                    # Rasmni o'chirish (tasdiqlanmagan)
+                    try:
+                        os.remove(photo_path)
+                    except:
+                        pass
+                    
                     await update.message.reply_text(
                         "❌ Yuz aniqlanmadi!\n\n"
-                        "Iltimos, quyidagilarga e'tibor bering:\n"
+                        "Iltimos:\n"
                         "• Yorug'lik yaxshi bo'lsin\n"
                         "• Yuz to'liq ko'rinsin\n"
-                        "• Fon oddiy bo'lsin\n"
-                        "• To'g'ridan-to'g'ri qarab turing"
+                        "• Boshqa odamlar bo'lmasin"
                     )
                     return False
                     
             except Exception as e:
                 logger.error(f"Yuz tekshirishda xatolik: {e}")
-                await update.message.reply_text("❌ Rasmni qayta ishlashda xatolik. Iltimos, qaytadan urinib ko'ring.")
+                await update.message.reply_text("❌ Rasmni qayta ishlashda xatolik.")
                 return False
         else:
             await update.message.reply_text("❌ Iltimos, rasm yuboring!")
             return False
     
-    def detect_face_mediapipe(self, image_path):
-        """MediaPipe yordamida yuzni aniqlash"""
+    @staticmethod
+    def detect_face_simple(image_path):
+        """OpenCV yordamida soddalashtirilgan yuzni aniqlash"""
         try:
+            # OpenCV ning oldingi yuz klassifikatorini yuklash
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            
             # Rasmni yuklash
             image = cv2.imread(image_path)
             if image is None:
                 return {"success": False, "face_count": 0}
             
-            # RGB ga o'tkazish
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # Gray scale ga o'tkazish
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
             # Yuzlarni aniqlash
-            results = self.face_detection.process(image_rgb)
+            faces = face_cascade.detectMultiScale(
+                gray, 
+                scaleFactor=1.1, 
+                minNeighbors=5, 
+                minSize=(30, 30),
+                flags=cv2.CASCADE_SCALE_IMAGE
+            )
             
-            face_count = 0
-            max_confidence = 0.0
-            
-            if results.detections:
-                face_count = len(results.detections)
-                for detection in results.detections:
-                    confidence = detection.score[0]
-                    if confidence > max_confidence:
-                        max_confidence = confidence
+            face_count = len(faces)
             
             if face_count == 0:
                 return {"success": False, "face_count": 0}
             
             # Sifat baholash
-            quality = self.calculate_quality(image, face_count, max_confidence)
+            quality = SimpleFaceVerification.calculate_simple_quality(image, faces[0] if face_count > 0 else None)
             
             return {
                 "success": True,
                 "face_count": face_count,
-                "confidence": max_confidence,
-                "quality": quality
+                "quality": quality,
+                "faces": faces
             }
             
         except Exception as e:
-            logger.error(f"MediaPipe yuz aniqlashda xatolik: {e}")
+            logger.error(f"Yuz aniqlashda xatolik: {e}")
             return {"success": False, "error": str(e)}
     
-    def calculate_quality(self, image, face_count, confidence):
-        """Rasm sifatini baholash"""
+    @staticmethod
+    def calculate_simple_quality(image, face_rect):
+        """Soddalashtirilgan sifat tekshiruvi"""
         try:
-            quality = 50  # Asosiy baho
+            quality = 60  # Asosiy baho
             
-            # Ishonch darajasi
-            quality += int(confidence * 30)
-            
-            # Rasm o'lchami va yorug'ligi
-            height, width = image.shape[:2]
-            brightness = np.mean(image)
-            
-            # Rasm o'lchami
-            if height >= 480 and width >= 640:
-                quality += 10
-            
-            # Yorug'lik
-            if 100 <= brightness <= 200:
-                quality += 10
+            if face_rect is not None:
+                x, y, w, h = face_rect
+                
+                # Yuzning rasmda qoplagan maydoni
+                img_height, img_width = image.shape[:2]
+                face_area_ratio = (w * h) / (img_height * img_width)
+                
+                # Yuz o'lchami
+                if face_area_ratio > 0.1:
+                    quality += 20
+                elif face_area_ratio > 0.05:
+                    quality += 10
+                
+                # Yorug'likni tekshirish
+                face_region = image[y:y+h, x:x+w]
+                brightness = np.mean(face_region)
+                
+                # Yorug'lik
+                if 100 <= brightness <= 200:
+                    quality += 20
             
             return min(95, quality)
             
         except:
-            return 60
-
-# Global face verification obyekti
-face_verifier = MediaPipeFaceVerification()
+            return 70
 
 # Qolgan funksiyalar...
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -251,8 +256,7 @@ async def get_passport_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📸 Iltimos, yuzingiz aniq ko'rinadigan rasm yuboring:\n"
         "• Yorug'lik yaxshi bo'lsin\n"
         "• Yuz to'liq ko'rinsin\n"
-        "• Fon oddiy bo'lsin\n"
-        "• To'g'ridan-to'g'ri qarab turing\n\n"
+        "• Boshqa odamlar bo'lmasin\n\n"
         "💡 Bu sizning shaxsingizni tasdiqlash uchun kerak",
         reply_markup=reply_markup
     )
@@ -266,7 +270,7 @@ async def get_face_verification(update: Update, context: ContextTypes.DEFAULT_TY
         return await get_passport_info(update, context)
     
     # Yuzni tekshirish
-    face_verified = await face_verifier.verify_face(update, context)
+    face_verified = await SimpleFaceVerification.verify_face(update, context)
     
     if face_verified:
         back_keyboard = [[KeyboardButton(BACK_BUTTON)]]
@@ -288,12 +292,14 @@ async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if user_input == BACK_BUTTON:
         context.user_data.pop('face_verified', None)
+        context.user_data.pop('face_photo_path', None)
         return await get_face_verification(update, context)
     
     context.user_data['message'] = user_input
     
     try:
-        await send_to_admin(update, context)
+        # Ma'lumotlarni adminga yuborish (rasm bilan birga)
+        await send_to_admin_with_photo(update, context)
         
         await update.message.reply_text(
             "✅ Murojaatingiz muvaffaqiyatli yuborildi!\n\n"
@@ -306,65 +312,82 @@ async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Xatolik: {e}")
         await update.message.reply_text("❌ Xatolik yuz berdi! /start ni bosing.")
     
+    # Ma'lumotlarni tozalash
+    await cleanup_files(context)
     context.user_data.clear()
     return ConversationHandler.END
 
-async def send_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def send_to_admin_with_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Adminga ma'lumotlar va rasmni yuborish"""
     try:
         user_data = context.user_data
         
+        # Text xabar
         admin_message = f"""
 YANGI MUROJAAT - BIOMETRIK TASDIQLANGAN
 
+👤 SHAXSIY MA'LUMOTLAR:
 Maqom: {user_data.get('role', 'Noma lum')}
 F.I.SH: {user_data.get('full_name', 'Noma lum')}
 Telefon: {user_data.get('phone', 'Noma lum')}
 Passport: {user_data.get('passport', 'Noma lum')}
-Murojaat: {user_data.get('message', 'Noma lum')}
 
-BIOMETRIK TASDIQLASH:
-✅ Yuz tasdiqlangan (MediaPipe)
-📊 Ishonch: {user_data.get('face_confidence', 0):.1%}
-⭐ Sifat: {user_data.get('face_quality', 'Noma lum')}%
+🔐 BIOMETRIK TASDIQLASH:
+✅ Yuz tasdiqlangan (OpenCV)
+📊 Sifat: {user_data.get('face_quality', 'Noma lum')}%
 
+💬 MUROJAAT MATNI:
+{user_data.get('message', 'Noma lum')}
+
+📋 QO'SHIMCHA:
 User ID: {update.effective_user.id}
 Username: {update.effective_user.username or 'Noma lum'}
         """
         
+        # Avval text xabarni yuborish
         await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_message)
-        logger.info("✅ Ma'lumotlar adminga yuborildi")
+        
+        # Keyin rasmni yuborish
+        if user_data.get('face_photo_path') and os.path.exists(user_data['face_photo_path']):
+            with open(user_data['face_photo_path'], 'rb') as photo:
+                await context.bot.send_photo(
+                    chat_id=ADMIN_CHAT_ID,
+                    photo=photo,
+                    caption=f"📸 Biometrik tasdiqlash - {user_data.get('full_name', 'Foydalanuvchi')}"
+                )
+        
+        logger.info("✅ Ma'lumotlar va rasm adminga yuborildi")
         
     except Exception as e:
         logger.error(f"Adminga yuborishda xatolik: {e}")
 
+async def cleanup_files(context: ContextTypes.DEFAULT_TYPE):
+    """Vaqtincha fayllarni tozalash"""
+    user_data = context.user_data
+    
+    try:
+        if user_data.get('face_photo_path') and os.path.exists(user_data['face_photo_path']):
+            os.remove(user_data['face_photo_path'])
+        logger.info("✅ Vaqtincha fayllar tozalandi")
+    except Exception as e:
+        logger.error(f"Fayllarni tozalashda xatolik: {e}")
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """🛡️ Korrupsiyaga qarshi kurash boti - Yordam
 
-🤖 Botdan foydalanish:
-
-/start - Botni ishga tushirish
-/help - Yordam olish
-/cancel - Jarayonni bekor qilish
-
 📝 Murojaat qilish bosqichlari:
-1️⃣ Maqom tanlash - Talaba, O'qituvchi yoki Xodim
-2️⃣ F.I.SH - To'liq Familiya Ism Sharif
-3️⃣ Telefon raqam - Aloqa uchun telefon
-4️⃣ Passport ma'lumotlari - Seriya va raqam
-5️⃣ 🔐 BIOMETRIK TASDIQLASH - Yuzni taniash
-6️⃣ Murojaat matni - Muammoning batafsil tavsifi
+1️⃣ Maqom tanlash
+2️⃣ F.I.SH kiritish  
+3️⃣ Telefon raqam
+4️⃣ Passport ma'lumotlari
+5️⃣ 🔐 BIOMETRIK TASDIQLASH (yuzni taniash)
+6️⃣ Murojaat matni
 
 🔐 Biometrik tasdiqlash:
-• Google MediaPipe texnologiyasi
-• Yuqori aniqlikda yuzni taniydi
-• Maxfiylik qo'llaniladi
-
-⚠️ Eslatmalar:
-• Barcha ma'lumotlar maxfiylik bilan saqlanadi
-• Murojaatingiz 3 ish kunida ko'rib chiqiladi
-• Yuz tasdiqlash majburiy
-
-🛡️ Korrupsiyaga qarshi kurash - milliy burchimiz!"""
+• Yuzingizni aniq ko'rsating
+• Yorug'lik yaxshi bo'lsin
+• Faqat bitta yuz bo'lsin
+• Rasm adminga yuboriladi"""
     
     help_keyboard = [
         [KeyboardButton("🎓 Talaba"), KeyboardButton("👨‍🏫 O'qituvchi")],
@@ -382,6 +405,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛡️ Korrupsiyaga qarshi kurashda ishtirok etganingiz uchun rahmat!\n"
         "🆕 Yangi murojaat uchun /start buyrug'ini yuboring"
     )
+    # Fayllarni tozalash
+    await cleanup_files(context)
     context.user_data.clear()
     return ConversationHandler.END
 
@@ -409,7 +434,8 @@ def main():
     application.add_handler(CommandHandler('start', start))
     
     logger.info("🤖 Bot ishga tushmoqda...")
-    logger.info("🔐 MediaPipe yuzni taniash tizimi faollashtirildi")
+    logger.info("🔐 OpenCV yuzni taniash tizimi faollashtirildi")
+    logger.info("📸 Rasm adminga yuboriladi")
     
     application.run_polling()
 
