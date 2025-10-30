@@ -1,4 +1,4 @@
-name: 🤖 MediaPipe Bot
+name: 🤖 Simple Telegram Bot
 
 on:
   push:
@@ -24,13 +24,14 @@ jobs:
     - name: 📦 Install dependencies
       run: |
         pip install -r requirements.txt
+        # Faqat kerakli paketlar
         sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-glx libopencv-dev
+        sudo apt-get install -y python3-opencv
         
-    - name: 🚀 Run MediaPipe Bot
+    - name: 🚀 Run Simple Bot
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
       run: |
-        echo "🤖 MediaPipe bot ishga tushmoqda..."
+        echo "🤖 Soddalashtirilgan bot ishga tushmoqda..."
         timeout 300 python bot.py
