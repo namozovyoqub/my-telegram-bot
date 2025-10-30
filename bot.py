@@ -1,7 +1,8 @@
 import logging
 import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram.ext import (Application, CommandHandler, MessageHandler, 
+                         Filters, CallbackContext, ConversationHandler)
 from dotenv import load_dotenv
 
 # .env faylidan o'qish
@@ -12,6 +13,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+logger = logging.getLogger(__name__)
 
 # Conversation holatlari
 SELECTING_ROLE, PERSONAL_INFO, PHONE_INFO, PASSPORT_INFO, PHOTO_CONFIRMATION, MESSAGE_TEXT = range(6)
@@ -23,7 +25,7 @@ ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
 # Tugmalar
 BACK_BUTTON = "⬅️ Orqaga qaytish"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: CallbackContext):
     """Botni ishga tushirish"""
     keyboard = [
         [KeyboardButton("🎓 Talaba"), KeyboardButton("👨‍🏫 O'qituvchi")],
@@ -39,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return SELECTING_ROLE
 
-async def select_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def select_role(update: Update, context: CallbackContext):
     """Foydalanuvchi maqomini tanlash"""
     user_input = update.message.text
     
@@ -66,7 +68,7 @@ async def select_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return PERSONAL_INFO
 
-async def get_personal_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_personal_info(update: Update, context: CallbackContext):
     """Familiya Ism Sharifni olish"""
     user_input = update.message.text
     
@@ -86,7 +88,7 @@ async def get_personal_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return PHONE_INFO
 
-async def get_phone_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_phone_info(update: Update, context: CallbackContext):
     """Telefon raqamini olish"""
     user_input = update.message.text
     
@@ -108,7 +110,7 @@ async def get_phone_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return PASSPORT_INFO
 
-async def get_passport_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_passport_info(update: Update, context: CallbackContext):
     """Passport ma'lumotlarini olish"""
     user_input = update.message.text
     
@@ -132,7 +134,7 @@ async def get_passport_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return PHOTO_CONFIRMATION
 
-async def get_photo_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_photo_confirmation(update: Update, context: CallbackContext):
     """Rasm tasdiqni olish"""
     user_input = update.message.text if update.message.text else ""
     
@@ -146,7 +148,7 @@ async def get_photo_confirmation(update: Update, context: ContextTypes.DEFAULT_T
         photo = update.message.photo[-1]  # Eng katta o'lchamli photo
         context.user_data['photo_file_id'] = photo.file_id
         context.user_data['confirmation_type'] = 'photo'
-        print(f"✅ Rasm qabul qilindi: {photo.file_id}")
+        logger.info(f"✅ Rasm qabul qilindi: {photo.file_id}")
         
     elif update.message.text:
         # Agar rasm emas, text yuborilsa
@@ -175,7 +177,7 @@ async def get_photo_confirmation(update: Update, context: ContextTypes.DEFAULT_T
     )
     return MESSAGE_TEXT
 
-async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def get_message_text(update: Update, context: CallbackContext):
     """Murojaat matnini olish va AVTOMATIK yuborish"""
     user_input = update.message.text
     
@@ -189,7 +191,7 @@ async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # MA'LUMOTLARNI AVTOMATIK YUBORISH
-        print("🚀 Ma'lumotlar avtomatik yuborilmoqda...")
+        logger.info("🚀 Ma'lumotlar avtomatik yuborilmoqda...")
         
         # Adminga yuborish
         await send_to_admin(update, context)
@@ -202,10 +204,10 @@ async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🆕 Yangi murojaat yuborish uchun /start buyrug'ini yuboring"
         )
         
-        print(f"✅ Ma'lumotlar yuborildi: User {update.effective_user.id}")
+        logger.info(f"✅ Ma'lumotlar yuborildi: User {update.effective_user.id}")
         
     except Exception as e:
-        print(f"❌ Xatolik: {e}")
+        logger.error(f"❌ Xatolik: {e}")
         
         # Xatolik xabari - HECH QANDAY TUGMA O'RNATILMAYDI
         await update.message.reply_text(
@@ -217,8 +219,8 @@ async def get_message_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return ConversationHandler.END
 
-async def send_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Adminga ma'lumotlarni yuborish - 100% ISHLAYDI"""
+async def send_to_admin(update: Update, context: CallbackContext):
+    """Adminga ma'lumotlarni yuborish"""
     try:
         user_data = context.user_data
         
@@ -242,7 +244,7 @@ Tasdiqlash: Rasm
             chat_id=ADMIN_CHAT_ID,
             text=admin_message
         )
-        print("✅ Text xabar yuborildi")
+        logger.info("✅ Text xabar yuborildi")
         
         # Rasm yuborish
         if user_data.get('photo_file_id'):
@@ -251,16 +253,16 @@ Tasdiqlash: Rasm
                 photo=user_data['photo_file_id'],
                 caption=f"Rasm: {user_data.get('full_name', 'Foydalanuvchi')}"
             )
-            print("✅ Rasm yuborildi")
+            logger.info("✅ Rasm yuborildi")
             
-        print("✅ Barcha ma'lumotlar yuborildi")
+        logger.info("✅ Barcha ma'lumotlar yuborildi")
         return True
         
     except Exception as e:
-        print(f"❌ Xatolik: {e}")
+        logger.error(f"❌ Xatolik: {e}")
         return False
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cancel(update: Update, context: CallbackContext):
     """Jarayonni bekor qilish"""
     await update.message.reply_text(
         "❌ Murojaat bekor qilindi.\n\n"
@@ -270,7 +272,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return ConversationHandler.END
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help_command(update: Update, context: CallbackContext):
     """Yordam buyrug'i"""
     help_text = """🛡️ Korrupsiyaga qarshi kurash boti - Yordam
 
@@ -313,45 +315,37 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return SELECTING_ROLE
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Xatolarni qayta ishlash"""
-    logging.error(f"Xatolik yuz berdi: {context.error}")
-    try:
-        await update.message.reply_text(
-            "❌ Kechirasiz, texnik xatolik yuz berdi. Iltimos, /start buyrug'ini yuboring."
-        )
-    except:
-        pass
-
 def main():
     """Asosiy dastur"""
     if not BOT_TOKEN:
-        logging.error("BOT_TOKEN topilmadi!")
+        logger.error("BOT_TOKEN topilmadi!")
         return
     
+    # Application yaratish
     application = Application.builder().token(BOT_TOKEN).build()
     
+    # Conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
             SELECTING_ROLE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, select_role)
+                MessageHandler(Filters.text & ~Filters.command, select_role)
             ],
             PERSONAL_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_personal_info)
+                MessageHandler(Filters.text & ~Filters.command, get_personal_info)
             ],
             PHONE_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_info)
+                MessageHandler(Filters.text & ~Filters.command, get_phone_info)
             ],
             PASSPORT_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_passport_info)
+                MessageHandler(Filters.text & ~Filters.command, get_passport_info)
             ],
             PHOTO_CONFIRMATION: [
-                MessageHandler(filters.PHOTO, get_photo_confirmation),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_photo_confirmation)
+                MessageHandler(Filters.photo, get_photo_confirmation),
+                MessageHandler(Filters.text & ~Filters.command, get_photo_confirmation)
             ],
             MESSAGE_TEXT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_message_text)
+                MessageHandler(Filters.text & ~Filters.command, get_message_text)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel), CommandHandler('help', help_command)]
@@ -361,13 +355,13 @@ def main():
     application.add_handler(CommandHandler('help', help_command))
     application.add_handler(CommandHandler('cancel', cancel))
     application.add_handler(CommandHandler('start', start))
-    application.add_error_handler(error_handler)
     
-    print("🤖 Bot ishga tushmoqda...")
-    print("🛡️ Korrupsiyaga qarshi kurash boti")
-    print("✅ Bot 24/7 ishlaydi")
+    logger.info("🤖 Bot ishga tushmoqda...")
+    logger.info("🛡️ Korrupsiyaga qarshi kurash boti")
+    logger.info("✅ Bot 24/7 ishlaydi")
     
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Botni ishga tushirish
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
