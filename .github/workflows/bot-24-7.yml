@@ -1,16 +1,16 @@
-name: 🤖 Telegram Bot 24/7
+name: 🤖 MediaPipe Bot
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
   schedule:
-    - cron: '*/9 * * * *'
+    - cron: '*/8 * * * *'
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 7
     
     steps:
     - name: 📥 Checkout code
@@ -24,11 +24,13 @@ jobs:
     - name: 📦 Install dependencies
       run: |
         pip install -r requirements.txt
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-glx libopencv-dev
         
-    - name: 🚀 Run Telegram Bot
+    - name: 🚀 Run MediaPipe Bot
       env:
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
       run: |
-        echo "🤖 Bot ishga tushmoqda..."
-        python bot.py
+        echo "🤖 MediaPipe bot ishga tushmoqda..."
+        timeout 300 python bot.py
