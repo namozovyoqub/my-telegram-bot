@@ -1,8 +1,8 @@
-import logging
+  import logging
 import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import (Application, CommandHandler, MessageHandler, 
-                         filters, CallbackContext, ConversationHandler)
+from telegram.ext import (Updater, CommandHandler, MessageHandler, 
+                         Filters, ConversationHandler, CallbackContext)
 from dotenv import load_dotenv
 
 # .env faylidan o'qish
@@ -25,7 +25,7 @@ ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID')
 # Tugmalar
 BACK_BUTTON = "⬅️ Orqaga qaytish"
 
-async def start(update: Update, context: CallbackContext):
+def start(update: Update, context: CallbackContext):
     """Botni ishga tushirish"""
     keyboard = [
         [KeyboardButton("🎓 Talaba"), KeyboardButton("👨‍🏫 O'qituvchi")],
@@ -34,24 +34,24 @@ async def start(update: Update, context: CallbackContext):
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         "🛡️ Assalomu Aleykum! Korrupsiyaga qarshi kurash bo'limi murojaat botiga xush kelibsiz!\n\n"
         "📝 Iltimos, o'zingizning maqomingizni tanlang yoki yordam oling:",
         reply_markup=reply_markup
     )
     return SELECTING_ROLE
 
-async def select_role(update: Update, context: CallbackContext):
+def select_role(update: Update, context: CallbackContext):
     """Foydalanuvchi maqomini tanlash"""
     user_input = update.message.text
     
     # Yordam tugmasi
     if user_input == "ℹ️ Yordam":
-        return await help_command(update, context)
+        return help_command(update, context)
     
     # Orqaga qaytishni tekshirish
     if user_input == BACK_BUTTON:
-        return await start(update, context)
+        return start(update, context)
     
     role = user_input
     context.user_data['role'] = role
@@ -60,7 +60,7 @@ async def select_role(update: Update, context: CallbackContext):
     back_keyboard = [[KeyboardButton(BACK_BUTTON)]]
     reply_markup = ReplyKeyboardMarkup(back_keyboard, resize_keyboard=True, one_time_keyboard=False)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         "👤 Shaxsiy ma'lumotlar\n\n"
         "📛 Iltimos, Familiya Ism Sharifingizni kiriting:\n"
         "Misol: Aliyev Vali Aliyevich",
@@ -68,41 +68,41 @@ async def select_role(update: Update, context: CallbackContext):
     )
     return PERSONAL_INFO
 
-async def get_personal_info(update: Update, context: CallbackContext):
+def get_personal_info(update: Update, context: CallbackContext):
     """Familiya Ism Sharifni olish"""
     user_input = update.message.text
     
     # Orqaga qaytishni tekshirish
     if user_input == BACK_BUTTON:
-        return await select_role(update, context)
+        return select_role(update, context)
     
     context.user_data['full_name'] = user_input
     
     back_keyboard = [[KeyboardButton(BACK_BUTTON)]]
     reply_markup = ReplyKeyboardMarkup(back_keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         "📱 Iltimos, telefon raqamingizni kiriting:\n"
         "Misol: +998901234567 yoki 901234567",
         reply_markup=reply_markup
     )
     return PHONE_INFO
 
-async def get_phone_info(update: Update, context: CallbackContext):
+def get_phone_info(update: Update, context: CallbackContext):
     """Telefon raqamini olish"""
     user_input = update.message.text
     
     # Orqaga qaytishni tekshirish
     if user_input == BACK_BUTTON:
         context.user_data.pop('full_name', None)
-        return await get_personal_info(update, context)
+        return get_personal_info(update, context)
     
     context.user_data['phone'] = user_input
     
     back_keyboard = [[KeyboardButton(BACK_BUTTON)]]
     reply_markup = ReplyKeyboardMarkup(back_keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         "📇 Iltimos, passport ma'lumotlaringizni kiriting:\n"
         "🎫 Seriya va raqamini kiriting:\n"
         "Misol: AB1234567",
@@ -110,21 +110,21 @@ async def get_phone_info(update: Update, context: CallbackContext):
     )
     return PASSPORT_INFO
 
-async def get_passport_info(update: Update, context: CallbackContext):
+def get_passport_info(update: Update, context: CallbackContext):
     """Passport ma'lumotlarini olish"""
     user_input = update.message.text
     
     # Orqaga qaytishni tekshirish
     if user_input == BACK_BUTTON:
         context.user_data.pop('phone', None)
-        return await get_phone_info(update, context)
+        return get_phone_info(update, context)
     
     context.user_data['passport'] = user_input
     
     back_keyboard = [[KeyboardButton(BACK_BUTTON)]]
     reply_markup = ReplyKeyboardMarkup(back_keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         "📸 Shaxsni tasdiqlash\n\n"
         "🖼️ Iltimos, rasm yuboring:\n"
         "• Telefondan selfi qilib yuborishingiz mumkin\n"
@@ -134,14 +134,14 @@ async def get_passport_info(update: Update, context: CallbackContext):
     )
     return PHOTO_CONFIRMATION
 
-async def get_photo_confirmation(update: Update, context: CallbackContext):
+def get_photo_confirmation(update: Update, context: CallbackContext):
     """Rasm tasdiqni olish"""
     user_input = update.message.text if update.message.text else ""
     
     # Orqaga qaytishni tekshirish
     if user_input == BACK_BUTTON:
         context.user_data.pop('passport', None)
-        return await get_passport_info(update, context)
+        return get_passport_info(update, context)
     
     # Photo tekshirish
     if update.message.photo:
@@ -152,14 +152,14 @@ async def get_photo_confirmation(update: Update, context: CallbackContext):
         
     elif update.message.text:
         # Agar rasm emas, text yuborilsa
-        await update.message.reply_text(
+        update.message.reply_text(
             "❌ Iltimos, rasm yuboring!\n"
             "📸 Rasm yuborish uchun 📎 belgisini bosing va 'Rasm' ni tanlang\n"
             "• Selfi qilib yuborishingiz mumkin"
         )
         return PHOTO_CONFIRMATION
     else:
-        await update.message.reply_text(
+        update.message.reply_text(
             "❌ Iltimos, rasm yuboring!"
         )
         return PHOTO_CONFIRMATION
@@ -168,7 +168,7 @@ async def get_photo_confirmation(update: Update, context: CallbackContext):
     back_keyboard = [[KeyboardButton(BACK_BUTTON)]]
     reply_markup = ReplyKeyboardMarkup(back_keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         "✅ Rasm muvaffaqiyatli qabul qilindi!\n\n"
         "💬 Endi murojaat matnini yozing:\n"
         "• Muammoni batafsil bayon qiling\n"
@@ -177,7 +177,7 @@ async def get_photo_confirmation(update: Update, context: CallbackContext):
     )
     return MESSAGE_TEXT
 
-async def get_message_text(update: Update, context: CallbackContext):
+def get_message_text(update: Update, context: CallbackContext):
     """Murojaat matnini olish va AVTOMATIK yuborish"""
     user_input = update.message.text
     
@@ -185,7 +185,7 @@ async def get_message_text(update: Update, context: CallbackContext):
     if user_input == BACK_BUTTON:
         context.user_data.pop('photo_file_id', None)
         context.user_data.pop('confirmation_type', None)
-        return await get_photo_confirmation(update, context)
+        return get_photo_confirmation(update, context)
     
     context.user_data['message'] = user_input
     
@@ -194,10 +194,10 @@ async def get_message_text(update: Update, context: CallbackContext):
         logger.info("🚀 Ma'lumotlar avtomatik yuborilmoqda...")
         
         # Adminga yuborish
-        await send_to_admin(update, context)
+        send_to_admin(update, context)
         
         # Foydalanuvchiga muvaffaqiyat xabari - HECH QANDAY TUGMA O'RNATILMAYDI
-        await update.message.reply_text(
+        update.message.reply_text(
             "✅ Murojaatingiz muvaffaqiyatli yuborildi!\n\n"
             "📞 Tez orada aloqaga chiqamiz\n"
             "🛡️ Korrupsiyaga qarshi kurash - bizning burchimiz!\n\n"
@@ -210,7 +210,7 @@ async def get_message_text(update: Update, context: CallbackContext):
         logger.error(f"❌ Xatolik: {e}")
         
         # Xatolik xabari - HECH QANDAY TUGMA O'RNATILMAYDI
-        await update.message.reply_text(
+        update.message.reply_text(
             f"❌ Xatolik yuz berdi!\n\n"
             f"Iltimos, /start buyrug'ini yuborib qaytadan urinib ko'ring."
         )
@@ -219,7 +219,7 @@ async def get_message_text(update: Update, context: CallbackContext):
     context.user_data.clear()
     return ConversationHandler.END
 
-async def send_to_admin(update: Update, context: CallbackContext):
+def send_to_admin(update: Update, context: CallbackContext):
     """Adminga ma'lumotlarni yuborish"""
     try:
         user_data = context.user_data
@@ -240,7 +240,7 @@ Tasdiqlash: Rasm
         """
         
         # Text xabar yuborish
-        await context.bot.send_message(
+        context.bot.send_message(
             chat_id=ADMIN_CHAT_ID,
             text=admin_message
         )
@@ -248,7 +248,7 @@ Tasdiqlash: Rasm
         
         # Rasm yuborish
         if user_data.get('photo_file_id'):
-            await context.bot.send_photo(
+            context.bot.send_photo(
                 chat_id=ADMIN_CHAT_ID,
                 photo=user_data['photo_file_id'],
                 caption=f"Rasm: {user_data.get('full_name', 'Foydalanuvchi')}"
@@ -262,9 +262,9 @@ Tasdiqlash: Rasm
         logger.error(f"❌ Xatolik: {e}")
         return False
 
-async def cancel(update: Update, context: CallbackContext):
+def cancel(update: Update, context: CallbackContext):
     """Jarayonni bekor qilish"""
-    await update.message.reply_text(
+    update.message.reply_text(
         "❌ Murojaat bekor qilindi.\n\n"
         "🛡️ Korrupsiyaga qarshi kurashda ishtirok etganingiz uchun rahmat!\n"
         "🆕 Yangi murojaat uchun /start buyrug'ini yuboring"
@@ -272,7 +272,7 @@ async def cancel(update: Update, context: CallbackContext):
     context.user_data.clear()
     return ConversationHandler.END
 
-async def help_command(update: Update, context: CallbackContext):
+def help_command(update: Update, context: CallbackContext):
     """Yordam buyrug'i"""
     help_text = """🛡️ Korrupsiyaga qarshi kurash boti - Yordam
 
@@ -309,11 +309,21 @@ async def help_command(update: Update, context: CallbackContext):
     ]
     reply_markup = ReplyKeyboardMarkup(help_keyboard, resize_keyboard=True)
     
-    await update.message.reply_text(
+    update.message.reply_text(
         help_text,
         reply_markup=reply_markup
     )
     return SELECTING_ROLE
+
+def error(update: Update, context: CallbackContext):
+    """Xatolarni qayta ishlash"""
+    logger.error(f"Xatolik yuz berdi: {context.error}")
+    try:
+        update.message.reply_text(
+            "❌ Kechirasiz, texnik xatolik yuz berdi. Iltimos, /start buyrug'ini yuboring."
+        )
+    except:
+        pass
 
 def main():
     """Asosiy dastur"""
@@ -321,47 +331,50 @@ def main():
         logger.error("BOT_TOKEN topilmadi!")
         return
     
-    # Application yaratish
-    application = Application.builder().token(BOT_TOKEN).build()
+    # Updater yaratish
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
     
     # Conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
             SELECTING_ROLE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, select_role)
+                MessageHandler(Filters.text & ~Filters.command, select_role)
             ],
             PERSONAL_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_personal_info)
+                MessageHandler(Filters.text & ~Filters.command, get_personal_info)
             ],
             PHONE_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_info)
+                MessageHandler(Filters.text & ~Filters.command, get_phone_info)
             ],
             PASSPORT_INFO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_passport_info)
+                MessageHandler(Filters.text & ~Filters.command, get_passport_info)
             ],
             PHOTO_CONFIRMATION: [
-                MessageHandler(filters.PHOTO, get_photo_confirmation),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_photo_confirmation)
+                MessageHandler(Filters.photo, get_photo_confirmation),
+                MessageHandler(Filters.text & ~Filters.command, get_photo_confirmation)
             ],
             MESSAGE_TEXT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_message_text)
+                MessageHandler(Filters.text & ~Filters.command, get_message_text)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel), CommandHandler('help', help_command)]
     )
     
-    application.add_handler(conv_handler)
-    application.add_handler(CommandHandler('help', help_command))
-    application.add_handler(CommandHandler('cancel', cancel))
-    application.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(conv_handler)
+    dispatcher.add_handler(CommandHandler('help', help_command))
+    dispatcher.add_handler(CommandHandler('cancel', cancel))
+    dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_error_handler(error)
     
     logger.info("🤖 Bot ishga tushmoqda...")
     logger.info("🛡️ Korrupsiyaga qarshi kurash boti")
     logger.info("✅ Bot 24/7 ishlaydi")
     
     # Botni ishga tushirish
-    application.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == '__main__':
     main()
