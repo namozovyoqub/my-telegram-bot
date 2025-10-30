@@ -2,7 +2,7 @@ import logging
 import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (Application, CommandHandler, MessageHandler, 
-                         Filters, CallbackContext, ConversationHandler)
+                         filters, CallbackContext, ConversationHandler)
 from dotenv import load_dotenv
 
 # .env faylidan o'qish
@@ -329,23 +329,23 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             SELECTING_ROLE: [
-                MessageHandler(Filters.text & ~Filters.command, select_role)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, select_role)
             ],
             PERSONAL_INFO: [
-                MessageHandler(Filters.text & ~Filters.command, get_personal_info)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_personal_info)
             ],
             PHONE_INFO: [
-                MessageHandler(Filters.text & ~Filters.command, get_phone_info)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_info)
             ],
             PASSPORT_INFO: [
-                MessageHandler(Filters.text & ~Filters.command, get_passport_info)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_passport_info)
             ],
             PHOTO_CONFIRMATION: [
-                MessageHandler(Filters.photo, get_photo_confirmation),
-                MessageHandler(Filters.text & ~Filters.command, get_photo_confirmation)
+                MessageHandler(filters.PHOTO, get_photo_confirmation),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_photo_confirmation)
             ],
             MESSAGE_TEXT: [
-                MessageHandler(Filters.text & ~Filters.command, get_message_text)
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_message_text)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel), CommandHandler('help', help_command)]
